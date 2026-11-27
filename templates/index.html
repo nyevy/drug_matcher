@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drug Interaction and Dosage Matcher</title>
+<style>
+  :root {
+    --bg: #f4f7f8; --card: #ffffff; --ink: #1b2a33; --muted: #5f717c;
+    --line: #d5dfe4; --accent: #1f6f78;
+    --major: #b3261e; --moderate: #b26a00; --minor: #2f6f9f; --none: #2e7d4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #131b20; --card: #1b262d; --ink: #e6eef2; --muted: #93a5af;
+      --line: #2e3d46; --accent: #5cbcc6; --major: #ff8a80; --moderate: #ffc266;
+      --minor: #8cc4f0; --none: #7fd69e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  nav button { padding: 8px 14px; border: 1px solid var(--line); background: var(--card);
+    color: var(--ink); border-radius: 6px; cursor: pointer; font: inherit; }
+  nav button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  section { display: none; background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 18px; }
+  section.on { display: block; }
+  h2 { font-size: 1.15rem; margin: 0 0 6px; }
+  .hint { color: var(--muted); font-size: .92rem; margin: 0 0 14px; }
+  label { font-size: .92rem; color: var(--muted); display: block; margin-bottom: 4px; }
+  select, input { font: inherit; padding: 7px 9px; border: 1px solid var(--line);
+    border-radius: 6px; background: var(--bg); color: var(--ink); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+  .go { padding: 8px 16px; background: var(--accent); color: #fff; border: 0;
+    border-radius: 6px; cursor: pointer; font: inherit; }
+  .go.alt { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .chip { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
+    cursor: pointer; background: var(--bg); font-size: .9rem; user-select: none; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .res { margin-top: 14px; }
+  .item { border-left: 4px solid var(--line); padding: 6px 10px; margin-bottom: 8px; background: var(--bg); border-radius: 0 6px 6px 0; }
+  .item.major { border-color: var(--major); } .item.moderate { border-color: var(--moderate); }
+  .item.minor { border-color: var(--minor); } .item.none { border-color: var(--none); }
+  .sev { font-weight: 600; } .sev.major { color: var(--major); } .sev.moderate { color: var(--moderate); }
+  .sev.minor { color: var(--minor); } .sev.none { color: var(--none); }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td button { font-size: .8rem; cursor: pointer; }
+  .msg { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Drug Interaction and Dosage Matcher</h1>
+  <p class="sub">Class project demo with made-up data. Not medical advice.</p>
+
+  <nav id="tabs">
+    <button data-t="check" class="on">Check a patient</button>
+    <button data-t="pairs">Find drug pairs</button>
+    <button data-t="list">Sorted drug list</button>
+    <button data-t="bench">Hash table test</button>
+  </nav>
+
+  <section id="check" class="on">
+    <h2>Check a patient's medications</h2>
+    <p class="hint">Pick a sample patient or tap drugs to build a list. Every pair is looked up in the interaction hash table.</p>
+    <div class="row">
+      <div><label for="patient">Sample patient</label><select id="patient"></select></div>
+      <button class="go" id="runCheck">Check interactions</button>
+    </div>
+    <div class="chips" id="checkChips"></div>
+    <div class="res" id="checkOut"></div>
+  </section>
+
+  <section id="pairs">
+    <h2>Find two drugs that add up to a target</h2>
+    <p class="hint">Uses hash-based 2-SUM. Leave the chips empty to search every drug, or pick a smaller set.</p>
+    <div class="row">
+      <div><label for="field">Add up</label>
+        <select id="field"><option value="cost">monthly cost ($)</option><option value="dose">daily dose (mg)</option></select></div>
+      <div><label for="target">Target</label><input id="target" type="number" value="25" style="width:110px"></div>
+      <div><label><input type="checkbox" id="safe" checked> hide major interactions</label></div>
+      <button class="go" id="runPairs">Find pairs</button>
+    </div>
+    <div class="chips" id="pairChips"></div>
+    <div class="res" id="pairOut"></div>
+  </section>
+
+  <section id="list">
+    <h2>Sorted drug list (binary search tree)</h2>
+    <p class="hint">The list is an in-order traversal. Try select, rank and predecessor, or add and delete drugs to change the tree.</p>
+    <div class="row">
+      <div><label for="by">Sort by</label>
+        <select id="by"><option value="name">name</option><option value="cost">cost</option><option value="dose">dose</option></select></div>
+      <div><label for="kth">k-th smallest</label><input id="kth" type="number" min="1" value="1" style="width:80px"></div>
+      <button class="go alt" id="runSelect">Select</button>
+      <button class="go alt" id="rotL">Rotate root left</button>
+      <button class="go alt" id="rotR">Rotate root right</button>
+    </div>
+    <p class="msg" id="treeInfo"></p>
+    <div class="row">
+      <div><label for="nName">New drug</label><input id="nName" placeholder="name" style="width:140px"></div>
+      <div><label for="nDose">Dose mg</label><input id="nDose" type="number" style="width:90px"></div>
+      <div><label for="nCost">Cost $</label><input id="nCost" type="number" style="width:90px"></div>
+      <button class="go" id="addDrug">Add drug</button>
+    </div>
+    <p class="msg" id="listMsg"></p>
+    <table><thead><tr><th>Drug</th><th>Class</th><th>Dose (mg)</th><th>Cost ($)</th><th></th></tr></thead>
+    <tbody id="drugRows"></tbody></table>
+  </section>
+
+  <section id="bench">
+    <h2>Collision methods compared</h2>
+    <p class="hint">Same 1009-slot table filled to different load factors. Avg probes is slots checked per successful lookup.</p>
+    <button class="go" id="runBench">Run test</button>
+    <div class="res"><table id="benchTable"></table></div>
+  </section>
+</main>
+
+<script>
+let allDrugs = [];
+let checkSel = new Set(), pairSel = new Set();
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  return r.json();
+}
+const post = (url, body) => api(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+
+// tabs
+$("tabs").onclick = e => {
+  if (!e.target.dataset.t) return;
+  document.querySelectorAll("nav button, section").forEach(x => x.classList.remove("on"));
+  e.target.classList.add("on");
+  $(e.target.dataset.t).classList.add("on");
+};
+
+// chips let you toggle drugs on and off
+function drawChips(box, sel) {
+  box.innerHTML = "";
+  allDrugs.forEach(d => {
+    const c = document.createElement("span");
+    c.className = "chip" + (sel.has(d.name) ? " on" : "");
+    c.textContent = d.name;
+    c.onclick = () => { sel.has(d.name) ? sel.delete(d.name) : sel.add(d.name); drawChips(box, sel); };
+    box.appendChild(c);
+  });
+}
+
+async function loadDrugs() {
+  const by = $("by").value;
+  const data = await api("/api/drugs?by=" + by);
+  allDrugs = (await api("/api/drugs?by=name")).drugs;
+  $("treeInfo").textContent = data.drugs.length + " drugs, tree height " + data.height;
+  $("drugRows").innerHTML = data.drugs.map(d =>
+    `<tr><td>${esc(d.name)}</td><td>${esc(d.class)}</td><td>${d.dose}</td><td>${d.cost}</td>
+     <td><button data-r="${esc(d.name)}">rank</button> <button data-p="${esc(d.name)}">predecessor</button>
+     <button data-d="${esc(d.name)}">delete</button></td></tr>`).join("");
+  drawChips($("checkChips"), checkSel);
+  drawChips($("pairChips"), pairSel);
+}
+
+async function init() {
+  const pts = await api("/api/patients");
+  $("patient").innerHTML = Object.keys(pts).map(p => `<option>${esc(p)}</option>`).join("");
+  $("patient").onchange = () => { checkSel = new Set(pts[$("patient").value]); drawChips($("checkChips"), checkSel); };
+  await loadDrugs();
+  $("patient").onchange();
+}
+
+$("runCheck").onclick = async () => {
+  const meds = [...checkSel];
+  if (meds.length < 2) { $("checkOut").innerHTML = '<p class="msg">Pick at least two drugs.</p>'; return; }
+  const r = await post("/api/check", {meds});
+  let html = `<p class="msg">${r.pairs_checked} pairs checked.</p>`;
+  if (!r.interactions.length) html += '<div class="item none"><span class="sev none">No known interactions</span> in this list.</div>';
+  r.interactions.forEach(i => {
+    html += `<div class="item ${i.severity}"><span class="sev ${i.severity}">${i.severity}</span> ${esc(i.a)} + ${esc(i.b)}: ${esc(i.note)}</div>`;
+  });
+  $("checkOut").innerHTML = html;
+};
+
+$("runPairs").onclick = async () => {
+  const r = await post("/api/twosum", {meds: [...pairSel], field: $("field").value,
+    target: $("target").value, safe_only: $("safe").checked});
+  let html = `<p class="msg">Searched ${r.searched} drugs, ${r.pairs.length} pair(s) found.</p>`;
+  r.pairs.forEach(p => {
+    html += `<div class="item ${p.severity}">${esc(p.a)} + ${esc(p.b)} <span class="sev ${p.severity}">(${p.severity})</span> ${esc(p.note)}</div>`;
+  });
+  $("pairOut").innerHTML = html;
+};
+
+$("by").onchange = loadDrugs;
+
+$("runSelect").onclick = async () => {
+  const r = await api(`/api/bst?by=${$("by").value}&op=select&k=${$("kth").value}`);
+  $("listMsg").textContent = r.drug ? `#${$("kth").value} by ${$("by").value}: ${r.drug.name}` : "k is out of range";
+};
+
+$("drugRows").onclick = async e => {
+  const by = $("by").value, t = e.target.dataset;
+  if (t.r) {
+    const r = await api(`/api/bst?by=${by}&op=rank&drug=${encodeURIComponent(t.r)}`);
+    $("listMsg").textContent = `${t.r} is number ${r.rank} of ${r.total} by ${by}`;
+  } else if (t.p) {
+    const r = await api(`/api/bst?by=${by}&op=predecessor&drug=${encodeURIComponent(t.p)}`);
+    $("listMsg").textContent = r.drug ? `just before ${t.p}: ${r.drug.name}` : `${t.p} is the first one`;
+  } else if (t.d) {
+    await api("/api/drug/" + encodeURIComponent(t.d), {method: "DELETE"});
+    pairSel.delete(t.d); checkSel.delete(t.d);
+    $("listMsg").textContent = "deleted " + t.d;
+    loadDrugs();
+  }
+};
+
+async function rotate(dir) {
+  const by = $("by").value;
+  const r = await post("/api/rotate", {by, dir});
+  $("listMsg").textContent = `rotated ${dir}: root is now ${r.root}, height ${r.height}. Sorted order is unchanged.`;
+  loadDrugs();
+}
+$("rotL").onclick = () => rotate("left");
+$("rotR").onclick = () => rotate("right");
+
+$("addDrug").onclick = async () => {
+  const r = await post("/api/drug", {name: $("nName").value, dose: $("nDose").value, cost: $("nCost").value});
+  $("listMsg").textContent = r.error ? r.error : "added " + r.name;
+  if (!r.error) { $("nName").value = $("nDose").value = $("nCost").value = ""; loadDrugs(); }
+};
+
+$("runBench").onclick = async () => {
+  const rows = await api("/api/benchmark");
+  let html = "<tr><th>Load</th><th>Chaining probes</th><th>Linear probes</th><th>Double probes</th><th>Collisions (chain / lin / dbl)</th></tr>";
+  rows.forEach(r => {
+    html += `<tr><td>${r.load}</td><td>${r.chaining.avg_probes}</td><td>${r.linear.avg_probes}</td><td>${r.double.avg_probes}</td>
+      <td>${r.chaining.collisions} / ${r.linear.collisions} / ${r.double.collisions}</td></tr>`;
+  });
+  $("benchTable").innerHTML = html;
+};
+
+init();
+</script>
+</body>
+</html>
