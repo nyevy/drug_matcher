@@ -1,5 +1,5 @@
-# our own hash table, no python dict used for the storage
-# supports chaining, linear probing and double hashing
+# custom hash table implementation without built-in python dicts
+# supports separate chaining, linear probing, and double hashing for collision handling
 
 
 class HashTable:

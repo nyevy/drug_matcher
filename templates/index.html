@@ -52,6 +52,10 @@
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
   td button { font-size: .8rem; cursor: pointer; }
   .msg { color: var(--muted); }
+  details.how-box { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin-bottom: 14px; font-size: .88rem; }
+  details.how-box summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  details.how-box p { margin: 4px 0 0; }
+  .legend { display: flex; gap: 14px; margin: 6px 0 12px; font-size: .88rem; }
 </style>
 </head>
 <body>
@@ -69,6 +73,18 @@
   <section id="check" class="on">
     <h2>Check a patient's medications</h2>
     <p class="hint">Pick a sample patient or tap drugs to build a list. Every pair is looked up in the interaction hash table.</p>
+    <details class="how-box">
+      <summary>How it works</summary>
+      <p><strong>Input:</strong> Patient medication list of <em>k</em> drugs.</p>
+      <p><strong>Output:</strong> Drug interactions among the meds, ordered by severity.</p>
+      <p><strong>Algorithm:</strong> Generates all <em>k(k-1)/2</em> medication pairs and queries canonical pair keys ("drugA|drugB") in an interaction hash table.</p>
+      <p><strong>Time complexity:</strong> <em>O(k<sup>2</sup>)</em> expected time with <em>O(1)</em> hash lookups, vs <em>O(k<sup>2</sup> &times; m)</em> scanning a list of <em>m</em> interactions.</p>
+    </details>
+    <div class="legend">
+      <span><strong class="sev major">● Major:</strong> dangerous</span>
+      <span><strong class="sev moderate">● Moderate:</strong> caution</span>
+      <span><strong class="sev minor">● Minor:</strong> monitor</span>
+    </div>
     <div class="row">
       <div><label for="patient">Sample patient</label><select id="patient"></select></div>
       <button class="go" id="runCheck">Check interactions</button>
@@ -80,10 +96,18 @@
   <section id="pairs">
     <h2>Find two drugs that add up to a target</h2>
     <p class="hint">Uses hash-based 2-SUM. Leave the chips empty to search every drug, or pick a smaller set.</p>
+    <details class="how-box">
+      <summary>How it works</summary>
+      <p><strong>Input:</strong> Drug list, chosen field (cost/dose), target sum, and safety filter.</p>
+      <p><strong>Output:</strong> Unique pairs of drugs whose values sum to the target.</p>
+      <p><strong>Algorithm:</strong> 2-SUM with a hash table. Hashes each drug by its value, then for each drug checks if <code>target - value</code> exists in the table.</p>
+      <p><strong>Time complexity:</strong> 2-SUM with a hash table: <em>O(n)</em> expected, vs <em>O(n<sup>2</sup>)</em> brute force.</p>
+    </details>
     <div class="row">
       <div><label for="field">Add up</label>
         <select id="field"><option value="cost">monthly cost ($)</option><option value="dose">daily dose (mg)</option></select></div>
-      <div><label for="target">Target</label><input id="target" type="number" value="25" style="width:110px"></div>
+      <div><label for="target">Target <span class="hint" id="sumHint" style="display:inline; margin-left:4px;"></span></label>
+        <input id="target" type="number" value="25" style="width:110px"></div>
       <div><label><input type="checkbox" id="safe" checked> hide major interactions</label></div>
       <button class="go" id="runPairs">Find pairs</button>
     </div>
@@ -94,6 +118,13 @@
   <section id="list">
     <h2>Sorted drug list (binary search tree)</h2>
     <p class="hint">The list is an in-order traversal. Try select, rank and predecessor, or add and delete drugs to change the tree.</p>
+    <details class="how-box">
+      <summary>How it works</summary>
+      <p><strong>Input:</strong> Drugs sorted dynamically by name, monthly cost, or daily dose.</p>
+      <p><strong>Output:</strong> In-order sorted list, tree height, <em>k</em>-th smallest element (select), rank, and predecessor.</p>
+      <p><strong>Algorithm:</strong> Binary Search Tree (BST) augmented with subtree <code>size</code> counters at every node, plus left/right tree rotations.</p>
+      <p><strong>Time complexity:</strong> Select, rank, search, and predecessor take <em>O(h)</em> time where <em>h</em> is tree height (<em>O(log n)</em> average, <em>O(n)</em> worst-case); in-order traversal is <em>O(n)</em>.</p>
+    </details>
     <div class="row">
       <div><label for="by">Sort by</label>
         <select id="by"><option value="name">name</option><option value="cost">cost</option><option value="dose">dose</option></select></div>
@@ -117,9 +148,17 @@
   <section id="bench">
     <h2>Collision methods compared</h2>
     <p class="hint">Same 1009-slot table filled to different load factors. Avg probes is slots checked per successful lookup.</p>
+    <details class="how-box">
+      <summary>How it works</summary>
+      <p><strong>Input:</strong> Seeded random string keys inserted into a 1009-slot hash table at load factors 0.3, 0.5, 0.7, and 0.9.</p>
+      <p><strong>Output:</strong> Collisions during insert and average probes per successful lookup.</p>
+      <p><strong>Algorithm:</strong> Tests three collision methods: separate chaining, linear probing, and double hashing (with secondary hash step).</p>
+      <p><strong>Time complexity:</strong> <em>O(1)</em> expected lookups; linear probing clusters as load factor &alpha; &rarr; 1 (~<em>O(1/(1-&alpha;)<sup>2</sup>)</em> probes), while double hashing avoids primary clustering (~<em>O((1/&alpha;) ln(1/(1-&alpha;)))</em>).</p>
+    </details>
     <button class="go" id="runBench">Run test</button>
     <div class="res"><table id="benchTable"></table></div>
   </section>
+  <footer style="text-align: center; margin-top: 32px; font-size: .88rem; color: var(--muted);">Toy data, not medical advice.</footer>
 </main>
 
 <script>
@@ -150,9 +189,26 @@ function drawChips(box, sel) {
     const c = document.createElement("span");
     c.className = "chip" + (sel.has(d.name) ? " on" : "");
     c.textContent = d.name;
-    c.onclick = () => { sel.has(d.name) ? sel.delete(d.name) : sel.add(d.name); drawChips(box, sel); };
+    c.onclick = () => {
+      sel.has(d.name) ? sel.delete(d.name) : sel.add(d.name);
+      drawChips(box, sel);
+      if (box === $("pairChips")) updateSumHint();
+    };
     box.appendChild(c);
   });
+}
+
+function updateSumHint() {
+  const field = $("field").value;
+  const activeDrugs = pairSel.size > 0 ? allDrugs.filter(d => pairSel.has(d.name)) : allDrugs;
+  if (activeDrugs.length < 2) {
+    $("sumHint").textContent = "(need at least 2 drugs)";
+    return;
+  }
+  const vals = activeDrugs.map(d => d[field]).sort((a, b) => a - b);
+  const minSum = vals[0] + vals[1];
+  const maxSum = vals[vals.length - 1] + vals[vals.length - 2];
+  $("sumHint").textContent = `(possible sums: ${minSum} - ${maxSum})`;
 }
 
 async function loadDrugs() {
@@ -166,6 +222,7 @@ async function loadDrugs() {
      <button data-d="${esc(d.name)}">delete</button></td></tr>`).join("");
   drawChips($("checkChips"), checkSel);
   drawChips($("pairChips"), pairSel);
+  updateSumHint();
 }
 
 async function init() {
@@ -174,13 +231,15 @@ async function init() {
   $("patient").onchange = () => { checkSel = new Set(pts[$("patient").value]); drawChips($("checkChips"), checkSel); };
   await loadDrugs();
   $("patient").onchange();
+  $("field").onchange = updateSumHint;
 }
 
 $("runCheck").onclick = async () => {
   const meds = [...checkSel];
   if (meds.length < 2) { $("checkOut").innerHTML = '<p class="msg">Pick at least two drugs.</p>'; return; }
   const r = await post("/api/check", {meds});
-  let html = `<p class="msg">${r.pairs_checked} pairs checked.</p>`;
+  const lookups = r.lookups !== undefined ? r.lookups : r.pairs_checked;
+  let html = `<p class="msg">${r.pairs_checked} pairs checked (${lookups} hash lookups).</p>`;
   if (!r.interactions.length) html += '<div class="item none"><span class="sev none">No known interactions</span> in this list.</div>';
   r.interactions.forEach(i => {
     html += `<div class="item ${i.severity}"><span class="sev ${i.severity}">${i.severity}</span> ${esc(i.a)} + ${esc(i.b)}: ${esc(i.note)}</div>`;
@@ -189,12 +248,27 @@ $("runCheck").onclick = async () => {
 };
 
 $("runPairs").onclick = async () => {
+  const targetVal = $("target").value.trim();
   const r = await post("/api/twosum", {meds: [...pairSel], field: $("field").value,
-    target: $("target").value, safe_only: $("safe").checked});
+    target: targetVal, safe_only: $("safe").checked});
+  if (r.error) {
+    $("pairOut").innerHTML = `<div class="item major"><span class="sev major">Error:</span> ${esc(r.error)}</div>`;
+    return;
+  }
   let html = `<p class="msg">Searched ${r.searched} drugs, ${r.pairs.length} pair(s) found.</p>`;
+  if (r.pairs.length === 0) {
+    html += `<div class="item none"><span class="sev none">No pairs add up to ${esc(targetVal)}.</span> Try a different target.</div>`;
+  }
   r.pairs.forEach(p => {
     html += `<div class="item ${p.severity}">${esc(p.a)} + ${esc(p.b)} <span class="sev ${p.severity}">(${p.severity})</span> ${esc(p.note)}</div>`;
   });
+  if (r.steps && r.steps.length) {
+    html += '<div style="margin-top: 14px;"><label>Search steps (trace):</label><div style="background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: .86rem; line-height: 1.5;">';
+    r.steps.forEach(s => {
+      html += `<div>${esc(s)}</div>`;
+    });
+    html += '</div></div>';
+  }
   $("pairOut").innerHTML = html;
 };
 

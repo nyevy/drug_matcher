@@ -1,7 +1,5 @@
-# toy data for the demo
-# costs are made up monthly generic prices in dollars (not real pricing)
-# interactions are simplified versions of commonly known ones, just for class
-# NOT medical advice
+# toy dataset with made-up prices and simplified interactions
+# for our algorithms class project (not real medical advice)
 
 # name, drug class, typical daily dose in mg, monthly cost in dollars
 DRUGS = [
@@ -66,6 +64,6 @@ INTERACTIONS = [
 PATIENTS = {
     "Patient A (heart + pain)": ["warfarin", "aspirin", "lisinopril", "atorvastatin", "ibuprofen"],
     "Patient B (mood + pain)": ["sertraline", "tramadol", "gabapentin", "omeprazole"],
-    "Patient C (blood pressure)": ["lisinopril", "spironolactone", "potassium chloride", "amlodipine", "metoprolol"],
-    "Patient D (diabetes)": ["metformin", "atorvastatin", "losartan", "hydrochlorothiazide"],
+    "Patient C (blood pressure - minor interaction)": ["metoprolol", "amlodipine"],
+    "Patient D (diabetes - no interactions)": ["metformin", "atorvastatin", "losartan", "hydrochlorothiazide"],
 }

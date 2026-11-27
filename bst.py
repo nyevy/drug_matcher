@@ -1,5 +1,5 @@
-# plain binary search tree (not self balancing) with subtree sizes
-# the size field is what lets us do select and rank in O(height)
+# unbalanced binary search tree with subtree size fields for order statistics
+# includes insert, delete, search, predecessor, rank, select, and tree rotations
 
 
 class Node:

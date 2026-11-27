@@ -1,5 +1,5 @@
-# drug interaction and dosage matcher
-# run with: python app.py  then open http://127.0.0.1:5000
+# flask web backend for drug interaction matching and 2-sum search
+# loads our custom hash table and bst structures to serve the frontend api
 from flask import Flask, jsonify, request, render_template
 
 import bst
@@ -58,7 +58,7 @@ def check_meds(meds):
     return found
 
 
-def two_sum(drugs, field, target):
+def two_sum(drugs, field, target, record_steps=False):
     # hash version of 2-sum: store value -> drugs, then look up target - value
     table = HashTable(101, "chaining")
     for d in drugs:
@@ -69,13 +69,27 @@ def two_sum(drugs, field, target):
         else:
             names.append(d["name"])
     pairs = []
+    steps = []
     for d in drugs:
-        partners = table.get(str(target - d[field]))
+        val = d[field]
+        needed = target - val
+        partners = table.get(str(needed))
         if partners:
             for other in partners:
                 # name ordering stops us from listing the same pair twice
                 if d["name"] < other:
                     pairs.append((d["name"], other))
+            other_names = [p for p in partners if p != d["name"]]
+            if record_steps:
+                if other_names:
+                    steps.append(f"{d['name']} ({val}): need {needed}, found {', '.join(other_names)}")
+                else:
+                    steps.append(f"{d['name']} ({val}): need {needed}, not found")
+        else:
+            if record_steps:
+                steps.append(f"{d['name']} ({val}): need {needed}, not found")
+    if record_steps:
+        return pairs, steps
     return pairs
 
 
@@ -101,26 +115,44 @@ def api_check():
     meds = request.json.get("meds", [])
     unknown = [m for m in meds if drug_table.get(m) is None]
     known = [m for m in meds if m not in unknown]
-    return jsonify({"interactions": check_meds(known), "unknown": unknown,
-                    "pairs_checked": len(known) * (len(known) - 1) // 2})
+    pairs_checked = len(known) * (len(known) - 1) // 2
+    return jsonify({
+        "interactions": check_meds(known),
+        "unknown": unknown,
+        "pairs_checked": pairs_checked,
+        "lookups": pairs_checked
+    })
 
 
 @app.route("/api/twosum", methods=["POST"])
 def api_twosum():
-    body = request.json
+    body = request.json or {}
     field = body.get("field", "cost")
-    target = int(body.get("target", 0))
+    raw_target = body.get("target")
+    if raw_target is None or str(raw_target).strip() == "":
+        return jsonify({"error": "Target sum cannot be empty"}), 400
+    try:
+        target = int(raw_target)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Target sum must be a valid integer"}), 400
+
     names = body.get("meds") or drug_table.keys()
     drugs = [drug_table.get(n) for n in names if drug_table.get(n)]
+    pairs, steps = two_sum(drugs, field, target, record_steps=True)
     results = []
-    for a, b in two_sum(drugs, field, target):
+    for a, b in pairs:
         hit = interaction_table.get(pair_key(a, b))
         sev = hit["severity"] if hit else "none"
         if body.get("safe_only") and sev == "major":
             continue
         results.append({"a": a, "b": b, "severity": sev,
                         "note": hit["note"] if hit else "no known interaction"})
-    return jsonify({"pairs": results, "searched": len(drugs)})
+
+    capped_steps = steps[:15]
+    if len(steps) > 15:
+        capped_steps.append(f"... and {len(steps) - 15} more")
+
+    return jsonify({"pairs": results, "searched": len(drugs), "steps": capped_steps})
 
 
 @app.route("/api/bst")
@@ -185,21 +217,26 @@ def api_delete_drug(name):
 @app.route("/api/benchmark")
 def api_benchmark():
     # same fake keys into each collision method at different load factors
+    # uses seeded random keys so linear probing behaves realistically
+    import random
+    rng = random.Random(42)
     size = 1009
     rows = []
     for load in (0.3, 0.5, 0.7, 0.9):
         n = int(size * load)
-        keys = ["rx%05d" % i for i in range(n)]
+        keys = [f"k_{rng.randint(100000, 999999)}_{i}" for i in range(n)]
         row = {"load": load}
         for method in ("chaining", "linear", "double"):
             t = HashTable(size, method)
             for k in keys:
                 t.put(k, 1)
+            # successful lookups
             t.probes = 0
             for k in keys:
                 t.get(k)
+            hit_probes = round(t.probes / n, 2)
             row[method] = {"collisions": t.collisions,
-                           "avg_probes": round(t.probes / n, 2)}
+                           "avg_probes": hit_probes}
         rows.append(row)
     return jsonify(rows)
 
